@@ -101,7 +101,13 @@ public:
 	virtual void OnRspSubMarketData(CTORATstpSpecificSecurityField* pSpecificSecurityField, CTORATstpRspInfoField* pRspInfoField, int nRequestID, bool bIsLast) override;
 
 	// lev1 : virtual void OnRtnMarketData(CTORATstpMarketDataField* pMarketDataField) override;, lev2 has 4 more parameters
-	virtual void OnRtnMarketData(CTORATstpLev2MarketDataField *pDepthMarketData, const int FirstLevelBuyNum, const int FirstLevelBuyOrderVolumes[], const int FirstLevelSellNum, const int FirstLevelSellOrderVolumes[]);
+	virtual void OnRtnMarketData(CTORATstpLev2MarketDataField *pDepthMarketData, const int FirstLevelBuyNum, const int FirstLevelBuyOrderVolumes[], const int FirstLevelSellNum, const int FirstLevelSellOrderVolumes[]) override;
+
+	// New function for lev2, 逐笔成交通知
+	virtual void OnRtnTransaction(CTORATstpLev2TransactionField *pTransaction) override;
+
+	// New function for lev2, 逐笔委托通知
+	virtual void OnRtnOrderDetail(CTORATstpLev2OrderDetailField * pOrderDetail) override;
 
 private:
 	/*

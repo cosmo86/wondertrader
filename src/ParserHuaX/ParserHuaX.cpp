@@ -8,6 +8,8 @@
  * \brief
  */
 #include "ParserHuaX.h"
+#include <ctime>
+#include <cstdint> // For uint32_t
 
 template<typename... Args>
 inline void write_log(IParserSpi* sink, WTSLogLevel ll, const char* format, const Args&... args)
@@ -39,6 +41,21 @@ extern "C"
 		}
 	}
 };
+
+// Add a function to get curr_date as Huaxin Lev DOES NOT return a date
+inline uint32_t getCurrentDate() {
+	// Obtain current time
+	std::time_t t = std::time(nullptr);
+	std::tm* now = std::localtime(&t);
+
+	// Convert to YYYYMMDD format
+	uint32_t date = (now->tm_year + 1900) * 10000    // Year
+		+ (now->tm_mon + 1) * 100          // Month
+		+ now->tm_mday;                    // Day
+
+	return date;
+}
+
 
 inline uint32_t strToTime(const char* strTime)
 {
@@ -405,15 +422,9 @@ void ParserHuaX::OnRtnMarketData(CTORATstpLev2MarketDataField* market_data, cons
 		return;
 	}
 
-	uint32_t actDate = (uint32_t)stoi(market_data->TradingDay);
-	auto time_vector = StrUtil::split(market_data->UpdateTime, ":");
-	uint32_t actTime{ 0 };
-	for (std::string time_str : time_vector)
-	{
-		actTime = actTime * 100;
-		actTime += std::stoi(time_str);
-	}
-	actTime = actTime * 1000 + market_data->UpdateMillisec;
+	uint32_t actDate = getCurrentDate();
+	uint32_t actTime = static_cast<uint32_t>(market_data->DataTimeStamp);
+
 	std::string code, exchg;
 	if (market_data->ExchangeID == TORA_TSTP_EXD_SSE)
 	{
@@ -449,9 +460,9 @@ void ParserHuaX::OnRtnMarketData(CTORATstpLev2MarketDataField* market_data, cons
 	quote.open = checkValid(market_data->OpenPrice);
 	quote.high = checkValid(market_data->HighestPrice);
 	quote.low = checkValid(market_data->LowestPrice);
-	quote.total_volume = (uint32_t)market_data->Volume;
+	quote.total_volume = (uint32_t)market_data->TotalVolumeTrade;
 	quote.trading_date = actDate;
-	quote.total_turnover = market_data->Turnover;
+	// Turnover not available in LEV2  quote.total_turnover = market_data->Turnover;
 
 	quote.upper_limit = checkValid(market_data->UpperLimitPrice);
 	quote.lower_limit = checkValid(market_data->LowerLimitPrice);
