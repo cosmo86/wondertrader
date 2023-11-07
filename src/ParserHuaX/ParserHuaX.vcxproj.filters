@@ -35,5 +35,14 @@
     <ClInclude Include="..\API\HuaX4.03\parserapi\xfastmdapitest\TORATstpXMdApiStruct.h">
       <Filter>HuaX</Filter>
     </ClInclude>
+    <ClInclude Include="..\API\HuaX4.03\parserapi\lev2mdapi\TORATstpLev2ApiDataType.h">
+      <Filter>HuaX</Filter>
+    </ClInclude>
+    <ClInclude Include="..\API\HuaX4.03\parserapi\lev2mdapi\TORATstpLev2ApiStruct.h">
+      <Filter>HuaX</Filter>
+    </ClInclude>
+    <ClInclude Include="..\API\HuaX4.03\parserapi\lev2mdapi\TORATstpLev2MdApi.h">
+      <Filter>HuaX</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

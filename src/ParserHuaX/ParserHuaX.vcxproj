@@ -359,6 +359,9 @@
     <ClCompile Include="ParserHuaX.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\API\HuaX4.03\parserapi\lev2mdapi\TORATstpLev2ApiDataType.h" />
+    <ClInclude Include="..\API\HuaX4.03\parserapi\lev2mdapi\TORATstpLev2ApiStruct.h" />
+    <ClInclude Include="..\API\HuaX4.03\parserapi\lev2mdapi\TORATstpLev2MdApi.h" />
     <ClInclude Include="..\API\HuaX4.03\parserapi\xfastmdapitest\TORATstpXMdApi.h" />
     <ClInclude Include="..\API\HuaX4.03\parserapi\xfastmdapitest\TORATstpXMdApiDataType.h" />
     <ClInclude Include="..\API\HuaX4.03\parserapi\xfastmdapitest\TORATstpXMdApiStruct.h" />
