@@ -116,16 +116,21 @@ bool ParserHuaX::init(WTSVariant* config)
 
 	std::string module = config->getCString("xtpmodule");
 	if (module.empty())
-		module = "xfastmdapi";
+		module = "lev2mdapi";
 
 	std::string path = StrUtil::printf("%s/%s/", _strFlowDir.c_str(), _strUser.c_str());
 	boost::filesystem::create_directories(path.c_str());
 
 	std::string dllpath = getBinDir() + DLLHelper::wrap_module(module.c_str(), "lib");;
+
+	printf("dllpath is --------------------- %s\n", dllpath.c_str());
+
 	_hInst = DLLHelper::load_library(dllpath.c_str());
 #ifdef _WIN32
 #	ifdef _WIN64
-	const char* creatorName = "?CreateTstpXMdApi@CTORATstpXMdApi@TORALEV1API@@SAPEAV12@AEBD0@Z";
+	//const char* creatorName = "?CreateTstpXMdApi@CTORATstpXMdApi@TORALEV1API@@SAPEAV12@AEBD0@Z";
+	//const char* creatorName = "?CreateTstpLev2MdApi@CTORATstpLev2MdApi@TORALEV2API@@SAPEAV12@AEBD0@Z";
+	const char* creatorName = "?CreateTstpLev2MdApi@CTORATstpLev2MdApi@TORALEV2API@@SAPEAV12@AEBD_N@Z";
 #	else
 	const char* creatorName = "?CreateTstpXMdApi@CTORATstpXMdApi@TORALEV1API@@SAPAV12@ABD0@Z";
 #	endif
@@ -133,10 +138,11 @@ bool ParserHuaX::init(WTSVariant* config)
 	// TODO linuxÏÂÎ´ÐÞ¸Ä
 	const char* creatorName = "_ZN11TORALEV1API15CTORATstpXMdApi16CreateTstpXMdApiERKcS2_";
 #endif
+
+
 	_funcCreator = (HuaXCreater)DLLHelper::get_symbol(_hInst, creatorName);
 	_api = _funcCreator((TTORATstpMDSubModeType)_sub_mode.c_str()[0], (TTORATstpMDSubModeType)_derive_sub_mode.c_str()[0]);
 	_api->RegisterSpi(this);
-
 	return true;
 }
 
@@ -171,13 +177,26 @@ void ParserHuaX::DoLogin()
 	{
 		return;
 	}
+	printf("_api is not null \n");
 	CTORATstpReqUserLoginField req_user_login_field;
 	memset(&req_user_login_field, 0, sizeof(req_user_login_field));
 
-	strcpy(req_user_login_field.UserProductInfo, "WonderTrader");
+	strcpy(req_user_login_field.UserProductInfo, "cc");
+
+	strcpy(req_user_login_field.LogInAccount, "00032129");
+	req_user_login_field.LogInAccountType = TORA_TSTP_LACT_UserID;
+	strcpy(req_user_login_field.Password, "19359120");
+
+
+
+	printf("LogInAccount is %s \n", req_user_login_field.LogInAccount);
+	printf("password is  is %s \n", req_user_login_field.Password);
+	if (req_user_login_field.LogInAccount[0] == '\0') {
+		printf("LogInAccount is empty \n");
+	}
 
 	int iResult = _api->ReqUserLogin(&req_user_login_field, 1);
-
+	printf("iResult is %d \n", iResult);
 	if (iResult != 0)
 	{
 		if (_sink)
@@ -185,6 +204,7 @@ void ParserHuaX::DoLogin()
 			if (iResult == -1)
 			{
 				_sink->handleEvent(WPE_Connect, iResult);
+				printf("trying logging \n");
 			}
 			else
 			{
@@ -198,12 +218,17 @@ void ParserHuaX::DoLogin()
 	else
 	{
 		_loginState = LS_LOGINING;
+		printf("iResult shoud be 0 and it is %d \n", iResult);
 	}
 }
 
 void ParserHuaX::DoSubscribeMD()
 {
+	printf("DoSubscribeMD running \n");
+
 	CodeSet codeFilter = _fitSHSubs;
+
+	printf("The value of codeFilter is: %d\n", codeFilter);
 	if (!codeFilter.empty())
 	{
 		char** subscribe = new char* [codeFilter.size()];
@@ -216,14 +241,18 @@ void ParserHuaX::DoSubscribeMD()
 
 		if (_api && nCount > 0)
 		{
+			printf("trying to subscribe, nCount is %d \n", nCount);
+
 			int iResult = _api->SubscribeMarketData(subscribe, nCount, TORA_TSTP_EXD_SSE);
 			if (iResult != 0)
 			{
+				printf("subscribe failed \n");
 				if (_sink)
 					write_log(_sink, LL_ERROR, "[ParserHuaX] Sending md subscribe request of SSE failed: {}", iResult);
 			}
 			else
 			{
+				printf("subscribe success \n");
 				if (_sink)
 					write_log(_sink, LL_INFO, "[ParserHuaX] Market data of {} instruments of SSE subscribed", nCount);
 			}
@@ -234,6 +263,7 @@ void ParserHuaX::DoSubscribeMD()
 	}
 
 	codeFilter = _fitSZSubs;
+	printf("The value of SZ codeFilter is: %d\n", codeFilter);
 	if (!codeFilter.empty())
 	{
 		char** subscribe = new char* [codeFilter.size()];
@@ -266,6 +296,7 @@ void ParserHuaX::DoSubscribeMD()
 
 void ParserHuaX::subscribe(const CodeSet& vecSymbols)
 {
+	printf("trying to subscribe \n");
 	if (!isConnected())
 	{
 		for (auto& code : vecSymbols)
@@ -309,6 +340,8 @@ void ParserHuaX::subscribe(const CodeSet& vecSymbols)
 
 			if (_api && nCount > 0)
 			{
+				printf("subscribing SSE %c \n", subscribe);
+				printf("nCount is %d \n", nCount);
 				int iResult = _api->SubscribeMarketData(subscribe, nCount, TORA_TSTP_EXD_SSE);
 				if (iResult != 0)
 				{
@@ -336,6 +369,8 @@ void ParserHuaX::subscribe(const CodeSet& vecSymbols)
 
 			if (_api && nCount > 0)
 			{
+				printf("subscribing SZSE %c \n", subscribe);
+				printf("nCount is %d \n", nCount);
 				int iResult = _api->SubscribeMarketData(subscribe, nCount, TORA_TSTP_EXD_SZSE);
 				if (iResult != 0)
 				{
@@ -368,6 +403,7 @@ void ParserHuaX::registerSpi(IParserSpi* listener)
 
 	if (_sink)
 		_pBaseDataMgr = _sink->getBaseDataMgr();
+	printf("SPI registered \n");
 }
 
 void ParserHuaX::OnFrontConnected()
@@ -375,6 +411,7 @@ void ParserHuaX::OnFrontConnected()
 	if (_sink)
 		_sink->handleEvent(WPE_Connect, 0);
 	DoLogin();
+	printf("front connected \n");
 }
 
 void ParserHuaX::OnFrontDisconnected(int nReason)
@@ -387,6 +424,8 @@ void ParserHuaX::OnRspUserLogin(CTORATstpRspUserLoginField* pRspUserLoginField, 
 {
 	if (pRspInfoField->ErrorID == 0)
 	{
+		printf("login success \n");
+		printf("LogInAccount is %s \n", pRspUserLoginField->LogInAccount);
 		_loginState = LS_LOGINED;
 		_uTradingDate = TimeUtils::getCurDate();
 
@@ -399,6 +438,8 @@ void ParserHuaX::OnRspUserLogin(CTORATstpRspUserLoginField* pRspUserLoginField, 
 	}
 	else
 	{
+		printf("login failed \n");
+		printf("LogInAccount is %s \n", pRspUserLoginField->LogInAccount);
 		write_log(_sink, LL_ERROR, "[ParserHuaX] login failed: {}:{}", pRspInfoField->ErrorID, pRspInfoField->ErrorMsg);
 		_loginState = LS_NOTLOGIN;
 	}
@@ -417,6 +458,7 @@ void ParserHuaX::OnRspSubMarketData(CTORATstpSpecificSecurityField* pSpecificSec
 // const int FirstLevelBuyNum, const int FirstLevelBuyOrderVolumes[], const int FirstLevelSellNum, const int FirstLevelSellOrderVolumes[] are new in Lev2
 void ParserHuaX::OnRtnMarketData(CTORATstpLev2MarketDataField* market_data, const int FirstLevelBuyNum, const int FirstLevelBuyOrderVolumes[], const int FirstLevelSellNum, const int FirstLevelSellOrderVolumes[])
 {
+	printf(" OnRtnMarketData");
 	if (_pBaseDataMgr == NULL)
 	{
 		return;
