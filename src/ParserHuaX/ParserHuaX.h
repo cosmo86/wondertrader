@@ -107,7 +107,7 @@ public:
 	//virtual void OnRtnTransaction(CTORATstpLev2TransactionField *pTransaction) override;
 
 	// New function for lev2, Öð±ÊÎ¯ÍÐÍ¨Öª
-	//virtual void OnRtnOrderDetail(CTORATstpLev2OrderDetailField * pOrderDetail) override;
+	virtual void OnRtnOrderDetail(CTORATstpLev2OrderDetailField * pOrderDetail) override;
 
 private:
 	/*

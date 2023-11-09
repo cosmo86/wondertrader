@@ -287,6 +287,21 @@ void ParserHuaX::DoSubscribeMD()
 				if (_sink)
 					write_log(_sink, LL_INFO, "[ParserHuaX] Market data of {} instruments of SZSE subscribed", nCount);
 			}
+
+			// Subscribe order detials
+			iResult = _api->SubscribeOrderDetail(subscribe, nCount, TORA_TSTP_EXD_SZSE);
+			if (iResult != 0)
+			{
+				if (_sink)
+					write_log(_sink, LL_ERROR, "[ParserHuaX] Sending md subscribe request of SZSE failed: {}", iResult);
+			}
+			else
+			{
+				if (_sink)
+					write_log(_sink, LL_INFO, "[ParserHuaX] Market data of {} instruments of SZSE subscribed", nCount);
+			}
+
+
 		}
 		codeFilter.clear();
 		delete[] subscribe;
@@ -458,7 +473,6 @@ void ParserHuaX::OnRspSubMarketData(CTORATstpSpecificSecurityField* pSpecificSec
 // const int FirstLevelBuyNum, const int FirstLevelBuyOrderVolumes[], const int FirstLevelSellNum, const int FirstLevelSellOrderVolumes[] are new in Lev2
 void ParserHuaX::OnRtnMarketData(CTORATstpLev2MarketDataField* market_data, const int FirstLevelBuyNum, const int FirstLevelBuyOrderVolumes[], const int FirstLevelSellNum, const int FirstLevelSellOrderVolumes[])
 {
-	printf(" OnRtnMarketData");
 	if (_pBaseDataMgr == NULL)
 	{
 		return;
@@ -497,6 +511,8 @@ void ParserHuaX::OnRtnMarketData(CTORATstpLev2MarketDataField* market_data, cons
 
 	quote.action_date = actDate;
 	quote.action_time = actTime;
+
+
 
 	quote.price = checkValid(market_data->LastPrice);
 	quote.open = checkValid(market_data->OpenPrice);
@@ -544,3 +560,95 @@ void ParserHuaX::OnRtnMarketData(CTORATstpLev2MarketDataField* market_data, cons
 
 	tick->release();
 }
+
+// OnRtnIrder new in lev2
+void ParserHuaX::OnRtnOrderDetail(CTORATstpLev2OrderDetailField * pOrderDetail)
+{
+
+
+	if (_pBaseDataMgr == NULL)
+	{
+		return;
+	}
+
+	uint32_t actDate = getCurrentDate();
+	uint32_t actTime = static_cast<uint32_t>(pOrderDetail->OrderTime);
+
+	std::string code, exchg;
+	if (pOrderDetail->ExchangeID == TORA_TSTP_EXD_SSE)
+	{
+		exchg = WT_MKT_SH_A;
+	}
+	else if (pOrderDetail->ExchangeID == TORA_TSTP_EXD_SZSE)
+	{
+		exchg = WT_MKT_SZ_A;
+	}
+	else
+		return;
+
+	code = pOrderDetail->SecurityID;
+
+	WTSContractInfo* ct = _pBaseDataMgr->getContract(code.c_str(), exchg.c_str());
+	if (ct == NULL)
+	{
+		if (_sink)
+			write_log(_sink, LL_ERROR, "[ParserHuaX] Instrument {}.{} not exists...", exchg, code);
+		return;
+	}
+	WTSCommodityInfo* commInfo = ct->getCommInfo();
+
+	// ´¦ÀíÖð±Ê Î¯ÍÐ
+
+	// Buy
+	if (pOrderDetail->Side == TORA_TSTP_LSD_Buy)
+	{
+		WTSOrdDtlData* buyDtl = WTSOrdDtlData::create(code.c_str());
+		buyDtl->setContractInfo(ct);
+
+		WTSOrdDtlStruct& buyStrut = buyDtl->getOrdDtlStruct();
+		strcpy(buyStrut.exchg, commInfo->getExchg());
+
+		buyStrut.trading_date = actDate;
+		buyStrut.action_date = actDate;
+		buyStrut.action_time = actTime;
+
+		buyStrut.index = pOrderDetail->OrderNO;
+		buyStrut.price = pOrderDetail->Price;
+		buyStrut.volume = pOrderDetail->Volume;
+		buyStrut.side = BDT_Buy;
+		buyStrut.otype = pOrderDetail->OrderType;
+
+		if (_sink)
+			_sink->handleOrderDetail(buyDtl);
+
+		//buyDtl->release();
+	}
+
+	// Sell
+	if (pOrderDetail->Side == TORA_TSTP_LSD_Sell)
+	{
+		WTSOrdDtlData* sellDtl = WTSOrdDtlData::create(code.c_str());
+		sellDtl->setContractInfo(ct);
+
+		WTSOrdDtlStruct& sellStrut = sellDtl->getOrdDtlStruct();
+		strcpy(sellStrut.exchg, commInfo->getExchg());
+
+		sellStrut.trading_date = actDate;
+		sellStrut.action_date = actDate;
+		sellStrut.action_time = actTime;
+
+		sellStrut.index = pOrderDetail->OrderNO;
+		sellStrut.price = pOrderDetail->Price;
+		sellStrut.volume = pOrderDetail->Volume;
+		sellStrut.side = BDT_Buy;
+		sellStrut.otype = pOrderDetail->OrderType;
+
+		if (_sink)
+			_sink->handleOrderDetail(sellDtl);
+
+		//sellDtl->release();
+	}
+
+
+}
+
