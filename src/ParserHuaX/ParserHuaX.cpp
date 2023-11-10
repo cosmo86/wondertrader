@@ -256,6 +256,20 @@ void ParserHuaX::DoSubscribeMD()
 				if (_sink)
 					write_log(_sink, LL_INFO, "[ParserHuaX] Market data of {} instruments of SSE subscribed", nCount);
 			}
+
+			// Subscribe NGTSTick
+			iResult = _api->SubscribeNGTSTick(subscribe, nCount, TORA_TSTP_EXD_SSE);
+			if (iResult != 0)
+			{
+				if (_sink)
+					write_log(_sink, LL_ERROR, "[ParserHuaX] Sending md subscribe request of SZSE failed: {}", iResult);
+			}
+			else
+			{
+				if (_sink)
+					write_log(_sink, LL_INFO, "[ParserHuaX] Market data of {} instruments of SZSE subscribed", nCount);
+			}
+
 		}
 		codeFilter.clear();
 		delete[] subscribe;
@@ -301,6 +315,18 @@ void ParserHuaX::DoSubscribeMD()
 					write_log(_sink, LL_INFO, "[ParserHuaX] Market data of {} instruments of SZSE subscribed", nCount);
 			}
 
+			// Subscribe transactions 
+			iResult = _api->SubscribeTransaction(subscribe, nCount, TORA_TSTP_EXD_SZSE);
+			if (iResult != 0)
+			{
+				if (_sink)
+					write_log(_sink, LL_ERROR, "[ParserHuaX] Sending md subscribe request of SZSE failed: {}", iResult);
+			}
+			else
+			{
+				if (_sink)
+					write_log(_sink, LL_INFO, "[ParserHuaX] Market data of {} instruments of SZSE subscribed", nCount);
+			}
 
 		}
 		codeFilter.clear();
@@ -561,10 +587,9 @@ void ParserHuaX::OnRtnMarketData(CTORATstpLev2MarketDataField* market_data, cons
 	tick->release();
 }
 
-// OnRtnIrder new in lev2
+// OnRtnOrderDetail new in lev2
 void ParserHuaX::OnRtnOrderDetail(CTORATstpLev2OrderDetailField * pOrderDetail)
 {
-
 
 	if (_pBaseDataMgr == NULL)
 	{
@@ -640,7 +665,7 @@ void ParserHuaX::OnRtnOrderDetail(CTORATstpLev2OrderDetailField * pOrderDetail)
 		sellStrut.index = pOrderDetail->OrderNO;
 		sellStrut.price = pOrderDetail->Price;
 		sellStrut.volume = pOrderDetail->Volume;
-		sellStrut.side = BDT_Buy;
+		sellStrut.side = BDT_Sell;
 		sellStrut.otype = pOrderDetail->OrderType;
 
 		if (_sink)
@@ -652,3 +677,188 @@ void ParserHuaX::OnRtnOrderDetail(CTORATstpLev2OrderDetailField * pOrderDetail)
 
 }
 
+
+
+// OnRtnTransaction new in lev2
+void ParserHuaX::OnRtnTransaction(CTORATstpLev2TransactionField *pTransaction)
+{
+
+	if (_pBaseDataMgr == NULL)
+	{
+		return;
+	}
+
+	uint32_t actDate = getCurrentDate();
+	uint32_t actTime = static_cast<uint32_t>(pTransaction->TradeTime);
+
+	std::string code, exchg;
+	if (pTransaction->ExchangeID == TORA_TSTP_EXD_SSE)
+	{
+		exchg = WT_MKT_SH_A;
+	}
+	else if (pTransaction->ExchangeID == TORA_TSTP_EXD_SZSE)
+	{
+		exchg = WT_MKT_SZ_A;
+	}
+	else
+		return;
+
+	code = pTransaction->SecurityID;
+
+	WTSContractInfo* ct = _pBaseDataMgr->getContract(code.c_str(), exchg.c_str());
+	if (ct == NULL)
+	{
+		if (_sink)
+			write_log(_sink, LL_ERROR, "[ParserHuaX] Instrument {}.{} not exists...", exchg, code);
+		return;
+	}
+	WTSCommodityInfo* commInfo = ct->getCommInfo();
+
+	WTSTransData* Transac = WTSTransData::create(code.c_str());
+	Transac->setContractInfo(ct);
+
+	WTSTransStruct& TransStrut = Transac->getTransStruct();
+	strcpy(TransStrut.exchg, commInfo->getExchg());
+
+	TransStrut.trading_date = actDate;
+	TransStrut.action_date = actDate;
+	TransStrut.action_time = actTime;
+	TransStrut.index = pTransaction->SubSeq;
+
+	TransStrut.price = pTransaction->TradePrice;
+	TransStrut.volume = pTransaction->TradeVolume;
+	TransStrut.askorder = pTransaction->BuyNo;
+	TransStrut.bidorder = pTransaction->SellNo;
+
+	if (_sink)
+		_sink->handleTransaction(Transac);
+
+
+}
+
+void ParserHuaX::OnRtnNGTSTick(CTORATstpLev2NGTSTickField *pTick)
+{
+	/*
+	Starting 2023 12, HuaX has adopted NGTSTICK to replace OrderDetial and Transaction
+	!!!Only for SH
+	!!!Only for SH
+	!!!Only for SH
+	Since Order and Trans are combined, we need to process both in this function call by using 
+	pTick->TickType @TORATstpLev2ApiDataType.h
+	新增委托订单
+	const char TORA_TSTP_LTT_Add = 'A';
+	删除委托订单
+	const char TORA_TSTP_LTT_Delete = 'D';
+	产品状态订单
+	const char TORA_TSTP_LTT_Status = 'S';
+	成交
+	const char TORA_TSTP_LTT_Trade = 'T';
+	typedef char TTORATstpLTickTypeType;
+	*/
+
+	if (_pBaseDataMgr == NULL)
+	{
+		return;
+	}
+
+	uint32_t actDate = getCurrentDate();
+	uint32_t actTime = static_cast<uint32_t>(pTick->TickTime);
+
+	std::string code, exchg;
+	exchg = WT_MKT_SH_A; // NGTS only applys to SH, so no need for exchange conditional
+	code = pTick->SecurityID;
+
+	WTSContractInfo* ct = _pBaseDataMgr->getContract(code.c_str(), exchg.c_str());
+	if (ct == NULL)
+	{
+		if (_sink)
+			write_log(_sink, LL_ERROR, "[ParserHuaX] Instrument {}.{} not exists...", exchg, code);
+		return;
+	}
+	WTSCommodityInfo* commInfo = ct->getCommInfo();
+
+
+	// Handle Trans
+	if ( pTick->TickType == TORA_TSTP_LTT_Trade)
+	{
+		WTSTransData* Transac = WTSTransData::create(code.c_str());
+		Transac->setContractInfo(ct);
+
+		WTSTransStruct& TransStrut = Transac->getTransStruct();
+		strcpy(TransStrut.exchg, commInfo->getExchg());
+
+		TransStrut.trading_date = actDate;
+		TransStrut.action_date = actDate;
+		TransStrut.action_time = actTime;
+		TransStrut.index = pTick->SubSeq;
+
+		//TransStrut.ttype = ;
+		TransStrut.side = pTick->TradeBSFlag;
+
+		TransStrut.price = pTick->Price;
+		TransStrut.volume = pTick->Volume;
+		TransStrut.askorder = pTick->BuyNo;
+		TransStrut.bidorder = pTick->SellNo;
+
+		if (_sink)
+			_sink->handleTransaction(Transac);
+	}
+
+	// Handle order detial
+	else if (pTick->TickType == TORA_TSTP_LTT_Add)
+	{
+		// Buy
+		if (pTick->Side == TORA_TSTP_LSD_Buy)
+		{
+			WTSOrdDtlData* buyDtl = WTSOrdDtlData::create(code.c_str());
+			buyDtl->setContractInfo(ct);
+
+			WTSOrdDtlStruct& buyStrut = buyDtl->getOrdDtlStruct();
+			strcpy(buyStrut.exchg, commInfo->getExchg());
+
+			buyStrut.trading_date = actDate;
+			buyStrut.action_date = actDate;
+			buyStrut.action_time = actTime;
+
+			buyStrut.index = pTick->SubSeq;
+			buyStrut.price = pTick->Price;
+			buyStrut.volume = pTick->Volume;
+			buyStrut.side = BDT_Buy;
+			// buyStrut.otype = pTick->OrderType; NA for SH
+
+			if (_sink)
+				_sink->handleOrderDetail(buyDtl);
+
+			//buyDtl->release();
+		}
+
+		// Sell
+		if (pTick->Side == TORA_TSTP_LSD_Sell)
+		{
+			WTSOrdDtlData* sellDtl = WTSOrdDtlData::create(code.c_str());
+			sellDtl->setContractInfo(ct);
+
+			WTSOrdDtlStruct& sellStrut = sellDtl->getOrdDtlStruct();
+			strcpy(sellStrut.exchg, commInfo->getExchg());
+
+			sellStrut.trading_date = actDate;
+			sellStrut.action_date = actDate;
+			sellStrut.action_time = actTime;
+
+			sellStrut.index = pTick->SubSeq;
+			sellStrut.price = pTick->Price;
+			sellStrut.volume = pTick->Volume;
+			sellStrut.side = BDT_Sell;
+			// sellStrut.otype = pTick->OrderType; NA for SH
+
+			if (_sink)
+				_sink->handleOrderDetail(sellDtl);
+
+			//sellDtl->release();
+		}
+
+	}
+
+
+
+}

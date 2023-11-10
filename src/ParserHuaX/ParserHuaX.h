@@ -104,10 +104,13 @@ public:
 	virtual void OnRtnMarketData(CTORATstpLev2MarketDataField *pDepthMarketData, const int FirstLevelBuyNum, const int FirstLevelBuyOrderVolumes[], const int FirstLevelSellNum, const int FirstLevelSellOrderVolumes[]) override;
 
 	// New function for lev2, 逐笔成交通知
-	//virtual void OnRtnTransaction(CTORATstpLev2TransactionField *pTransaction) override;
+	virtual void OnRtnTransaction(CTORATstpLev2TransactionField *pTransaction) override;
 
 	// New function for lev2, 逐笔委托通知
 	virtual void OnRtnOrderDetail(CTORATstpLev2OrderDetailField * pOrderDetail) override;
+
+	// New func in lev2, Order and Tran combined onlly for SH
+	virtual void OnRtnNGTSTick(CTORATstpLev2NGTSTickField *pTick) override;
 
 private:
 	/*
